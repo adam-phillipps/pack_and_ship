@@ -1,27 +1,21 @@
-# so  here is the steps
-# 1. save file runs script
-# 2. ruby builds XML
-# 3. ruby zips file
-# 4. copy to S3
-# 5. put url in paste buffer
-# 6. display URL
-# 7. give status (file copied,,,)
 require 'nokogiri'
 require 'zipruby'
-require 'byebug'
 require 'pathname'
 require 'fileutils'
+require 'aws-sdk'
 
-def build_xml_manifest(name)
-  mp4 = Pathname.new("#{File.expand_path(File.dirname(__FILE__))}/#{name}.mp4")
-  png = Pathname.new("#{File.expand_path(File.dirname(__FILE__))}/#{name}.png")
+def build_xml_manifest(dir, name)
+  base = Pathname.new(dir)
+  mp4_path = base + (name + '.mp4')
+  xml_path = base + (name + '.xml')
+  xml_file = File.open(xml_path, 'w+')
   builder = Nokogiri::XML::Builder.new('encoding' => 'UTF-8') do |xml|
     xml.assets {
-      xml.repVideoFIleName mp4
-      xml.headshot png
+      xml.repVideoFIleName mp4_path
     }
   end
-  builder.to_xml
+  xml_file << builder.to_xml
+  xml_file.close
 end
 
 def pack_up(name)
@@ -29,39 +23,46 @@ def pack_up(name)
   Dir.mkdir(path)
   current = Pathname(File.expand_path(File.dirname(__FILE__)))
   FileUtils.mv(current + (name + '.mp4'), path + (name + '.mp4'))
-  FileUtils.mv(current + (name + '.png'), path + (name + '.png'))
   FileUtils.mv(current + (name + '.xml'), path + (name + '.xml'))
 
-  Zip::Archive.open(path, Zip::CREATE) do |zip|
-    zip.add_dir path
+  Zip::Archive.open((path.to_s + '.zip'), Zip::CREATE) do |zip|
+    zip.add_dir path.to_s
   end
 end
 
-def ship(name)
+def ship(zip_file_location)
   resp = ''
   creds = Aws::Credentials.new(
-    ENV['AWS_ACCESS_KEY_ID'], ENV['AWS_SECRET_ACCESS_KEY']
+    '',
+    ''
   )
+  s3 = Aws::S3::Client.new(
+            region: 'us-west-2',
+            credentials: creds
+          )
 
-  File.open(location, 'r') do |file|
-    resp = s3.put_object(bucket: 'backlog-pointway', key: xml_file_name, body: file)
+  File.open(zip_file_location.to_s, 'r') do |file|
+    resp = s3.put_object(bucket: 'backlog-pointway', key: zip_file_location.to_s, body: file)
     file.close
   end
 
-  zip_file_name # figure out a way to get the url or hard code it
+  zip_file_location # figure out a way to get the url or hard code it
 end
 
-def give_url_to_public(name)
-  byebug
-  puts url
+def pbcopy(input)
+  str = input.to_s
+  IO.popen('pbcopy', 'w') { |f| f << str }
+  str
 end
 
-def run(name)
-  build_xml_manifest(name)
+def run
+  dir = File.expand_path(File.dirname(__FILE__))
+  name = Dir["#{File.expand_path(File.dirname(__FILE__))}/" + '*.mp4'].first.split(/[\/|\\]/).last.gsub('.mp4', '') || ARGV[0]
+  build_xml_manifest(dir, name)
   pack_up(name)
-  ship(name)
-  give_url_to_public(name)
+  ship(Pathname.new(dir) + (name + '.zip'))
+  pbcopy(name)
+  name
 end
 
-
-run(Dir["#{File.expand_path(File.dirname(__FILE__))}/*.mp4"].first.split(/[\/,\\]/).last.gsub('.mp4', '') || ARGV[0])
+run
