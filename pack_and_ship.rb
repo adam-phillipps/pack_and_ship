@@ -1,17 +1,20 @@
+require 'byebug'
 require 'nokogiri'
 require 'zipruby'
 require 'pathname'
 require 'fileutils'
 require 'aws-sdk'
+require 'dotenv'
 
 def build_xml_manifest(dir, name)
   base = Pathname.new(dir)
   mp4_path = base + (name + '.mp4')
   xml_path = base + (name + '.xml')
   xml_file = File.open(xml_path, 'w+')
+  url = "http://  "
   builder = Nokogiri::XML::Builder.new('encoding' => 'UTF-8') do |xml|
     xml.assets {
-      xml.repVideoFIleName mp4_path
+      xml.repVideoFIleName 
     }
   end
   xml_file << builder.to_xml
@@ -32,17 +35,13 @@ end
 
 def ship(zip_file_location)
   resp = ''
-  creds = Aws::Credentials.new(
-    '',
-    ''
-  )
-  s3 = Aws::S3::Client.new(
-            region: 'us-west-2',
-            credentials: creds
-          )
+  Dotenv.load
+  creds = Aws::Credentials.new(ENV['KEY'], ENV['SECRET'])
+  s3 = Aws::S3::Client.new(region: 'us-west-2', credentials: creds)
 
   File.open(zip_file_location.to_s, 'r') do |file|
-    resp = s3.put_object(bucket: 'backlog-pointway', key: zip_file_location.to_s, body: file)
+    key = zip_file_location.to_s.split(/[\/|\\]/).last
+    resp = s3.put_object(bucket: 'backlog-pointway', key: key, body: file)
     file.close
   end
 
@@ -58,6 +57,7 @@ end
 def run
   dir = File.expand_path(File.dirname(__FILE__))
   name = Dir["#{File.expand_path(File.dirname(__FILE__))}/" + '*.mp4'].first.split(/[\/|\\]/).last.gsub('.mp4', '') || ARGV[0]
+  byebug
   build_xml_manifest(dir, name)
   pack_up(name)
   ship(Pathname.new(dir) + (name + '.zip'))
