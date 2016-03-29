@@ -8,7 +8,7 @@ require 'dotenv'
 
 def build_xml_manifest(dir, name)
   base = Pathname.new(dir)
-  mp4_path = base + (name + '.mp4')
+  mov_path = base + (name + '.mov')
   xml_path = base + (name + '.xml')
   xml_file = File.open(xml_path, 'w+')
   url = "http://  "
@@ -25,7 +25,7 @@ def pack_up(name)
   path = Pathname(File.expand_path(File.dirname(__FILE__))) + name
   Dir.mkdir(path)
   current = Pathname(File.expand_path(File.dirname(__FILE__)))
-  FileUtils.mv(current + (name + '.mp4'), path + (name + '.mp4'))
+  FileUtils.mv(current + (name + '.mov'), path + (name + '.mov'))
   FileUtils.mv(current + (name + '.xml'), path + (name + '.xml'))
 
   Zip::Archive.open((path.to_s + '.zip'), Zip::CREATE) do |zip|
@@ -56,7 +56,7 @@ end
 
 def run
   dir = File.expand_path(File.dirname(__FILE__))
-  name = Dir["#{File.expand_path(File.dirname(__FILE__))}/" + '*.mp4'].first.split(/[\/|\\]/).last.gsub('.mp4', '') || ARGV[0]
+  name = Dir["#{File.expand_path(File.dirname(__FILE__))}/" + '*.mov'].first.split(/[\/|\\]/).last.gsub('.mov', '') || ARGV[0]
   byebug
   build_xml_manifest(dir, name)
   pack_up(name)
